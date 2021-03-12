@@ -30,7 +30,6 @@ If you're creating animated texture please make sure all frames has the same wid
     - PNG, JPEG, BMP
 
 ## Showcase
-### Texture
 ![HayRH5mnSZ](https://user-images.githubusercontent.com/39301116/111008978-a6183400-8392-11eb-993c-f3f62efe0320.gif)
 
 ### In Game
