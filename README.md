@@ -3,15 +3,6 @@ Last Chaos Texture Tool
 <br/>
 **ChaosLib.D3D** library is required for this project, you can find it [here](https://github.com/5z3f/ChaosLib/tree/main/ChaosLib.D3D)
 
-## Normal Texture
-![ChaosTools Texture_r9YVwjX1DD](https://user-images.githubusercontent.com/39301116/111008934-8da81980-8392-11eb-8441-eb7bfca45847.png)
-
-## Animated Texture Preview
-![HayRH5mnSZ](https://user-images.githubusercontent.com/39301116/111008978-a6183400-8392-11eb-993c-f3f62efe0320.gif)
-
-### In Game
-![example-animated-texture](https://user-images.githubusercontent.com/39301116/110999776-2fbf0600-8381-11eb-8134-0d0babced07a.gif)
-
 ## Ready features:
 - animated texture, various import/export formats
 - hue change per frame or all frames, zoom
@@ -38,3 +29,12 @@ If you're creating animated texture please make sure all frames has the same wid
     - TEX (only as uncompressed for now)
     - PNG, JPEG, BMP
 
+## Showcase
+### Normal Texture
+![ChaosTools Texture_r9YVwjX1DD](https://user-images.githubusercontent.com/39301116/111008934-8da81980-8392-11eb-8441-eb7bfca45847.png)
+
+### Animated Texture
+![HayRH5mnSZ](https://user-images.githubusercontent.com/39301116/111008978-a6183400-8392-11eb-993c-f3f62efe0320.gif)
+
+### In Game
+![example-animated-texture](https://user-images.githubusercontent.com/39301116/110999776-2fbf0600-8381-11eb-8134-0d0babced07a.gif)
