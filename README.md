@@ -17,6 +17,8 @@ Last Chaos Texture Tool
 - export separated frames
 - you can pin it to .tex extension
 
+If you're creating animated texture please make sure all frames has the same width, height and pixelformat
+
 ## Supported formats:
  * Import
     - TEX (uncompressed, dxt1, dxt3, dxt5)
@@ -29,4 +31,3 @@ Last Chaos Texture Tool
     - TEX (only as uncompressed for now)
     - PNG, JPEG, BMP
 
-* If you're creating animated texture please make sure all frames has the same width, height and pixelformat
