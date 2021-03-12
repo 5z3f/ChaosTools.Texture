@@ -30,10 +30,7 @@ If you're creating animated texture please make sure all frames has the same wid
     - PNG, JPEG, BMP
 
 ## Showcase
-### Normal Texture
-![ChaosTools Texture_r9YVwjX1DD](https://user-images.githubusercontent.com/39301116/111008934-8da81980-8392-11eb-8441-eb7bfca45847.png)
-
-### Animated Texture
+### Texture
 ![HayRH5mnSZ](https://user-images.githubusercontent.com/39301116/111008978-a6183400-8392-11eb-993c-f3f62efe0320.gif)
 
 ### In Game
