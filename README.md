@@ -3,7 +3,7 @@ Last Chaos Texture Tool
 <br/>
 **ChaosLib.D3D** library is required for this project, you can find it [here](https://github.com/5z3f/ChaosLib/tree/main/ChaosLib.D3D)
 
-## Ready features:
+## Ready features
 - animated texture, various import/export formats
 - hue change per frame or all frames, zoom
 - change duration between frames
@@ -17,7 +17,7 @@ Last Chaos Texture Tool
 
 If you're creating animated texture please make sure all frames has the same width, height and pixelformat
 
-## Supported formats:
+## Supported formats
  * Import
     - TEX (uncompressed, dxt1, dxt3, dxt5)
     - PNG, JPEG, BMP
