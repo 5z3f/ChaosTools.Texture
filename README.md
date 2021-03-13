@@ -5,10 +5,11 @@ Last Chaos Texture Tool
 
 ## Ready features
 - animated texture, various import/export formats
-- hue change per frame or all frames, zoom
+- hue change per frame or all frames
+- zoom (on mouse scroll)
 - change duration between frames
 - texture flag editor
-- color2transparent function (pick color by right clicking on texture)
+- color2transparent function (pick color by right clicking on image)
 - import uv map from mesh file (last chaos & serious engine 1.10 supported)
 - drag and drop (multifile drop is not supported for tex and gif files)
 - create animated texture from gif file
