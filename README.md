@@ -19,16 +19,15 @@ Last Chaos Texture Tool
 If you're creating animated texture please make sure all frames has the same width, height and pixelformat
 
 ## Supported formats
- * Import
-    - TEX (uncompressed, dxt1, dxt3, dxt5)
-    - PNG, JPEG, BMP
-    - GIF
-    - TARGA
-    - DDS
-
- * Export
-    - TEX (only as uncompressed for now)
-    - PNG, JPEG, BMP
+### Import
+- TEX (uncompressed, dxt1, dxt3, dxt5)
+- PNG, JPEG, BMP
+- GIF
+- TARGA
+- DDS
+### Export
+- TEX (only as uncompressed for now)
+- PNG, JPEG, BMP
 
 ## Showcase
 ![HayRH5mnSZ](https://user-images.githubusercontent.com/39301116/111008978-a6183400-8392-11eb-993c-f3f62efe0320.gif)
