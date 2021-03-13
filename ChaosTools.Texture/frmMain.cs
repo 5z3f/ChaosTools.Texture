@@ -204,6 +204,8 @@ namespace ChaosTools.Texture
             cbOnlyCurrentFrame.Visible = false;
             lbCurrentFrame.Visible = false;
             btnPlayPauseAnimation.Visible = false;
+            btnPlayPauseAnimation.Text = "Pause";
+
 
             if (AnimationTimer.Enabled)
                 AnimationTimer.Stop();
@@ -248,7 +250,7 @@ namespace ChaosTools.Texture
             if (Texture.Format != "GIF87" && Texture.Format != "GIF89")
             {
                 OriginalBitmapFrames = new Bitmap[frames.Length];
-                for(int i = 0; i < frames.Length; i++)
+                for (int i = 0; i < frames.Length; i++)
                     OriginalBitmapFrames[i] = frames[i].Clone();
 
 
@@ -304,12 +306,14 @@ namespace ChaosTools.Texture
             if (!IsFileLoaded)
                 return;
 
+            if (CurrentFrameID >= Texture.BitmapFrames.Length - 1)
+                CurrentFrameID = 0;
+            else
+                CurrentFrameID++;
+
             pbTexture.Image = Texture.BitmapFrames[CurrentFrameID];
             lbCurrentFrame.Text = $"#" + CurrentFrameID.ToString();
 
-            CurrentFrameID++;
-            if (CurrentFrameID >= Texture.BitmapFrames.Length)
-                CurrentFrameID = 0;
         }
 
         private Bitmap[] ExtractFrames(Bitmap bmp)
@@ -688,9 +692,9 @@ namespace ChaosTools.Texture
             else
                 Texture.BitmapFrames[CurrentFrameID] = RotateHue(Texture.BitmapFrames[CurrentFrameID], trbHue.Value);
 
-            if (!Texture.IsAnimated || cbOnlyCurrentFrame.Checked)
+            if (cbOnlyCurrentFrame.Checked || !AnimationTimer.Enabled)
             {
-                pbTexture.Image = Texture.BitmapFrames[cbOnlyCurrentFrame.Checked ? CurrentFrameID : 0];
+                pbTexture.Image = Texture.BitmapFrames[Texture.IsAnimated ? CurrentFrameID : 0];
                 pbTexture.Refresh();
             }
         }
@@ -725,7 +729,7 @@ namespace ChaosTools.Texture
                 AnimationTimer.Start();
 
             btnPlayPauseAnimation.Text = isTimerRunning ? "Play" : "Pause";
-            pbTexture.Image = Texture.BitmapFrames[CurrentFrameID];
+           // pbTexture.Image = Texture.BitmapFrames[CurrentFrameID];
         }
 
         public static void SetDoubleBuffered(Control c)
