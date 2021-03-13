@@ -16,7 +16,7 @@ Last Chaos Texture Tool
 - export separated frames
 - you can pin it to .tex extension
 
-If you're creating animated texture please make sure all frames has the same width, height and pixelformat
+If you're creating animated texture make sure all frames has the same width, height and pixelformat
 
 ## Supported formats
 ### Import
