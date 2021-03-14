@@ -9,14 +9,17 @@ Last Chaos Texture Tool
 - zoom (on mouse scroll)
 - change duration between frames
 - texture flag editor
+- icon mode wich shows icon col/row ids on btn files
 - color2transparent function (pick color by right clicking on image)
 - import uv map from mesh file (last chaos & serious engine 1.10 supported)
 - drag and drop (multifile drop is not supported for tex and gif files)
 - create animated texture from gif file
 - export separated frames
 - you can pin it to .tex extension
-
-If you're creating animated texture make sure all frames has the same width, height and pixelformat
+- key bindings:
+    - ``+/-`` next/previous frame
+    - ``CTRL+/-`` increase/decrease frame duration
+    - ``SPACE`` play/pause animation
 
 ## Supported formats
 ### Import
@@ -30,8 +33,7 @@ If you're creating animated texture make sure all frames has the same width, hei
 - PNG, JPEG, BMP
 
 ## Showcase
-![ChaosTools Texture_r9YVwjX1DD](https://user-images.githubusercontent.com/39301116/111008934-8da81980-8392-11eb-8441-eb7bfca45847.png)
-![HayRH5mnSZ](https://user-images.githubusercontent.com/39301116/111008978-a6183400-8392-11eb-993c-f3f62efe0320.gif)
+![61O5dj7xBt](https://user-images.githubusercontent.com/39301116/111074087-c4407a00-84e1-11eb-865a-7d2b47aca8fc.gif)
 
 ### In Game
 ![example-animated-texture](https://user-images.githubusercontent.com/39301116/110999776-2fbf0600-8381-11eb-8134-0d0babced07a.gif)
