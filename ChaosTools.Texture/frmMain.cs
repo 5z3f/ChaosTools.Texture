@@ -7,7 +7,6 @@ using System.IO;
 using System.Linq;
 using System.Reflection;
 using System.Windows.Forms;
-using ChaosTools.Texture.Properties;
 using System.Runtime.InteropServices;
 using System.ComponentModel;
 
@@ -15,6 +14,7 @@ using ChaosLib.D3D;
 using CBinaryTexture = ChaosLib.D3D.Structures.CBinaryTexture;
 using CTextureAnimation = ChaosLib.D3D.Structures.CTextureAnimation;
 using TextureFlag = ChaosLib.D3D.Structures.TextureFlag;
+using ChaosTools.Texture.Properties;
 
 namespace ChaosTools.Texture
 {
@@ -23,14 +23,14 @@ namespace ChaosTools.Texture
         public CTexture Texture = new CTexture();
         public Bitmap[] OriginalBitmapFrames = null;
 
-        private int IconsCreated = 0;
-        private readonly int ZoomBuffer = 4000;
-
         private int CursorX = 0, CursorY = 0;
         private int IconX = 0, IconY = 0;
 
-        private Timer AnimationTimer = new Timer();
+        // animation variables
+        private readonly Timer AnimationTimer = new Timer();
+
         private int CurrentFrameID = 0;
+        private string CurrentFileName = string.Empty;
 
         // control booleans
         private bool IsFileLoaded = false;
@@ -38,46 +38,77 @@ namespace ChaosTools.Texture
         private bool ShowFrameBox = false;
         private bool ShowFlagBox = false;
 
-        // mode booleans
+        // icon mode variables
         private bool IconMode = false;
-        private bool AnimationMode = false;
-        private bool ColorPickerMode = true;
+        private int IconsCreated = 0;
 
-        private Color PickedColor = Color.Black;
+        // -- icon file, offset
+        private int IconOffset = 32; // default
+        private Dictionary<string, int> IconOffsets = new Dictionary<string, int>
+        {
+            { "ItemBtn",            32 },
+            { "ItemCollectionBtn",  60 },
+            { "SkillBtn",           32 },
+            { "SkillBtnD",          32 },
+            { "ActionBtn",          32 },
+            { "QuestBtn",           32 },
+            { "RemissionBtn",       32 },
+            { "GSymbolBtn",         32 },
+            { "GBackBtn",           32 },
+            { "EventBtn",           32 },
+            { "ComboBtn",           50 },
+        };
+
+        // supported file signatures
+        private Dictionary<string, byte[]> FileSignatures = new Dictionary<string, byte[]>
+        {
+            { "JPG",    new byte[] { 0xFF, 0xD8, 0xFF }},
+            { "JPEG",   new byte[] { 0x4A, 0x46, 0x49, 0x46 }},
+            { "TEX",    new byte[] { 0x54, 0x56, 0x45, 0x52 }},
+            { "PNG",    new byte[] { 0x89, 0x50, 0x4E, 0x47 }},
+            { "GIF87",  new byte[] { 0x47, 0x49, 0x46, 0x38, 0x37 }},
+            { "GIF89",  new byte[] { 0x47, 0x49, 0x46, 0x38, 0x39 }},
+            { "TGA",    new byte[] { 0x54, 0x52, 0x55, 0x45, 0x56, 0x49, 0x53, 0x49 }},
+            { "BMP",    new byte[] { 0x42, 0x4D }},
+            { "DDS",    new byte[] { 0x44, 0x44, 0x53, 0x20 } }
+        };
 
         // colorizing variables
-        private ImageAttributes ImageAttributes = new ImageAttributes();
-        private ColorMatrix ColorMatrix = new ColorMatrix();
+        private Color SelectedColor = Color.Black;
 
         public frmMain(string fp)
         {
             InitializeComponent();
 
-            // init drag callback
+            // callback
             DragEnter += new DragEventHandler(frmMain_DragEnter);
             DragDrop += new DragEventHandler(frmMain_DragDrop);
-
-            // callback
-            AnimationTimer.Tick += AnimationTimer_TickCallback;
+            AnimationTimer.Tick += AnimationTimer_Tick;
             bgwExtractFrames.DoWork += bgwExtractFrames_DoWork;
             bgwExtractFrames.RunWorkerCompleted += bgwExtractFrames_RunWorkerCompleted;
             bgwExtractFrames.ProgressChanged += bgwExtractFrames_ProgressChanged;
+            KeyDown += new KeyEventHandler(frmMain_KeyDown);
+
+            KeyPreview = true;
 
             // set double buffer
             SetDoubleBuffered(pTexture);
             SetDoubleBuffered(pbTexture);
 
             // create transparent background
-            pTexture.BackgroundImage = MakeTransparentBackground(size: 10);
+            pTexture.BackgroundImage = CreateTransparentBackground(size: 10);
 
             // resize picturebox to center
-            pbTexture.Left = (ClientSize.Width - pbTexture.Width) / 2;
-            pbTexture.Top = (ClientSize.Height - pbTexture.Height) / 2;
+            pbTexture.Left = (pTexture.Width - pbTexture.Width) / 2;
+            pbTexture.Top = (pTexture.Height - pbTexture.Height) / 2;
 
             // set default box visibility
             pEditBox.Visible = ShowEditBox;
             lvFrames.Visible = ShowFrameBox;
             pFlagBox.Visible = ShowFlagBox;
+
+            // draw default select color
+            DrawSelectedColor();
 
             // load lc texture flags
             var texflag = from i in Enum.GetNames(typeof(TextureFlag)) select i;
@@ -87,6 +118,20 @@ namespace ChaosTools.Texture
                 ReadFiles(fp, sf: true);
         }
 
+        private void frmMain_KeyDown(object sender, KeyEventArgs e)
+        {
+            switch (e.KeyCode)
+            {
+                case (Keys.Add or Keys.Subtract):
+                    if (e.Control)  SetFrameDuration(increase: e.KeyCode is Keys.Add);
+                    else            SetFrame(increase: e.KeyCode is Keys.Add);
+                    break;
+
+                case Keys.Space:
+                    ChangeAnimationState();
+                    break;
+            }
+        }
 
         private void frmMain_DragEnter(object sender, DragEventArgs e)
         {
@@ -101,11 +146,10 @@ namespace ChaosTools.Texture
         }
 
 
-        private dynamic ExtractFirstFrame(string fp, List<Bitmap> bmps)
+        private dynamic ExtractFrameInfo(string fp, List<Bitmap> lbmp)
         {
             var rf = ReadFile(fp);
-
-            Text = "ChaosTools.Texture - " + Path.GetFileName(fp);
+            CurrentFileName = Path.GetFileName(fp);
 
             dynamic data = rf.data;
             string fileType = rf.fileType;
@@ -129,44 +173,28 @@ namespace ChaosTools.Texture
                     CheckFlagInListbox(clbFlag, (int)data.Flags);
 
                 if (isAnimated)
-                    bmps.AddRange(data.BitmapFrames);
+                    lbmp.AddRange(data.BitmapFrames);
                 else
-                    bmps.Add(isTexture ? data.BitmapFrames[0] : data);
+                    lbmp.Add(isTexture ? data.BitmapFrames[0] : data);
 
-                var firstFrame = bmps.First();
+                var firstFrame = lbmp.First();
 
                 Texture.Width = firstFrame.Width;
                 Texture.Height = firstFrame.Height;
                 Texture.PixelFormat = firstFrame.PixelFormat.ToString();
 
                 if (Texture.IsAnimated)
-                {
                     Texture.FrameDuration = Convert.ToInt32(Texture.IsTexture ? data.Animation[0].FrameDuration * 1000 * 10 : 100);
-                    Texture.FrameCount = Texture.IsTexture ? data.Animation[0].FrameCount : bmps.Count;
-                }
-
             }
 
-            return new { bmps, data = rf.data, fileType };
+            return new { lbmp, data = rf.data, fileType };
         }
 
         private dynamic ReadFile(string fp)
         {
             string ext = Path.GetExtension(fp);
-            var signatures = new Dictionary<string, byte[]>
-            {
-                { "JPG",   new byte[] { 0xFF, 0xD8, 0xFF }},
-                { "JPEG",   new byte[] { 0x4A, 0x46, 0x49, 0x46 }},
-                { "TEX",    new byte[] { 0x54, 0x56, 0x45, 0x52 }},
-                { "PNG",    new byte[] { 0x89, 0x50, 0x4E, 0x47 }},
-                { "GIF87",  new byte[] { 0x47, 0x49, 0x46, 0x38, 0x37 }},
-                { "GIF89",  new byte[] { 0x47, 0x49, 0x46, 0x38, 0x39 }},
-                { "TGA",    new byte[] { 0x54, 0x52, 0x55, 0x45, 0x56, 0x49, 0x53, 0x49 }},
-                { "BMP",    new byte[] { 0x42, 0x4D }},
-                { "DDS",    new byte[] { 0x44, 0x44, 0x53, 0x20 } }
-            };
 
-            int maxSignatureLength = signatures.Max(x => x.Value.Length);
+            int maxSignatureLength = FileSignatures.Max(x => x.Value.Length);
             byte[] signatureBytes = new byte[maxSignatureLength];
 
             using (var fs = File.OpenRead(fp))
@@ -175,21 +203,20 @@ namespace ChaosTools.Texture
             dynamic data = null;
             string fileType = string.Empty;
 
-            foreach (var x in signatures)
+            foreach (var x in FileSignatures)
                 fileType = x.Value.SequenceEqual(signatureBytes.Take(x.Value.Length)) ? x.Key : fileType;
 
             if (fileType is "PNG" or "BMP" || fileType is "JPG" or "JPEG" || fileType is "GIF87" or "GIF89")
                 data = Image.FromFile(fp);
             else if (fileType is "TGA" or "DDS" || ext is ".tga" or ".dds")
-                data = LoadTGA(fp);
+                data = LoadTARGA(fp);
             else if (fileType is "TEX")
                 data = LoadTexture(fp);
 
             return new { data, fileType };
         }
 
-
-        private Bitmap[] ExtractBitmaps(dynamic fp, bool sf)
+        private void ResetControls()
         {
             // reset data
             Texture = new CTexture();
@@ -202,23 +229,29 @@ namespace ChaosTools.Texture
             lbFrameDurationValue.Visible = false;
             trbFrameDuration.Visible = false;
             cbOnlyCurrentFrame.Visible = false;
-            lbCurrentFrame.Visible = false;
             btnPlayPauseAnimation.Visible = false;
+
             btnPlayPauseAnimation.Text = "Pause";
+            btnPlayPauseAnimation.Image = Resources.Pause_grey_16x;
 
+            tslbIconPosition.Text = "0 x 0";
 
+            trbHue.Value = 0;
+
+            // stop animation if enabeld
             if (AnimationTimer.Enabled)
                 AnimationTimer.Stop();
+        }
 
-            var bmps = new List<Bitmap>();
+
+        private Bitmap[] ExtractFiles(dynamic fp, bool sf) // sf => is single file
+        {
+            var lbmp = new List<Bitmap>();
 
             if (sf)
             {
-                var r = ExtractFirstFrame(fp, bmps);
-                bmps = r.bmps;
-
-                if (r.fileType is not "GIF87" and "GIF89")
-                    Texture.IsAnimated = bmps.Count > 1;
+                var r = ExtractFrameInfo(fp, lbmp);
+                lbmp = r.lbmp;
             }
             else
             {
@@ -226,94 +259,71 @@ namespace ChaosTools.Texture
                 {
                     if (i is 0)
                     {
-                        var r = ExtractFirstFrame(fp[i], bmps);
-                        bmps = r.bmps;
-
-                        if (r.fileType is not "GIF87" and "GIF89")
-                            Texture.IsAnimated = bmps.Count > 1;
+                        var r = ExtractFrameInfo(fp[i], lbmp);
+                        lbmp = r.lbmp;
 
                         i++;
                     }
 
-                    if (i < fp.Length && !Texture.IsAnimated && !Texture.IsTexture)
-                        bmps.Add(ReadFile(fp[i]).data);
+                    if (i != fp.Length && !Texture.IsAnimated && !Texture.IsTexture)
+                        lbmp.Add(ReadFile(fp[i]).data);
                 }
             }
-
-            return bmps.ToArray();
+           
+            return lbmp.ToArray();
         }
 
         private void ReadFiles(dynamic f, bool sf = false)
         {
-            var frames = ExtractBitmaps(f, sf);
+            ResetControls();
 
-            if (Texture.Format != "GIF87" && Texture.Format != "GIF89")
+            var frames = ExtractFiles(f, sf);
+
+            if (!bgwExtractFrames.IsBusy)
             {
                 OriginalBitmapFrames = new Bitmap[frames.Length];
                 for (int i = 0; i < frames.Length; i++)
                     OriginalBitmapFrames[i] = frames[i].Clone();
 
-
                 Texture.BitmapFrames = frames;
-
                 Texture.IsAnimated = (frames.Length > 1);
+
                 SetupControls();
-
-                IsFileLoaded = true;
             }
-
         }
 
-        // --- bgwExtractFrames
+        private void AnimationTimer_Tick(object sender, EventArgs e)
+            => SetFrame(increase: true);
+
         private void bgwExtractFrames_DoWork(object sender, DoWorkEventArgs e)
-        {
-            e.Result = ExtractFrames((Bitmap)e.Argument);
-        }
+            => e.Result = ExtractFrames((Bitmap)e.Argument);
 
         private void bgwExtractFrames_ProgressChanged(object sender, ProgressChangedEventArgs e)
         {
-            int frameCount = Convert.ToInt32(e.UserState);
-            int currentFrame = e.ProgressPercentage;
+            int fc = Convert.ToInt32(e.UserState);
+            int cf = e.ProgressPercentage;
 
-            tslbStatus.Text = $"Extracting frames... {currentFrame}/{frameCount}";
-            tsProgress.Value = (currentFrame * 100 / frameCount);
+            tslbStatus.Text = $"Extracting frames... {cf}/{fc}";
+            tsProgress.Value = (cf * 100 / fc);
         }
 
         private void bgwExtractFrames_RunWorkerCompleted(object sender, RunWorkerCompletedEventArgs e)
         {
             Texture.BitmapFrames = (Bitmap[])e.Result;
 
-            OriginalBitmapFrames = new Bitmap[Texture.BitmapFrames.Length];
-            for (int i = 0; i < Texture.BitmapFrames.Length; i++)
-                OriginalBitmapFrames[i] = (Bitmap)Texture.BitmapFrames[i].Clone();
+            OriginalBitmapFrames = new Bitmap[Texture.FrameCount];
+            for (int i = 0; i < Texture.FrameCount; i++)
+                OriginalBitmapFrames[i] = (Bitmap)Texture.GetFrame(i).Clone();
 
-            Texture.IsAnimated = Texture.BitmapFrames.Length > 1;
-            Texture.PixelFormat = Texture.BitmapFrames[0].PixelFormat.ToString();
-            Texture.Width = Texture.BitmapFrames[0].Width;
-            Texture.Height = Texture.BitmapFrames[0].Height;
-            Texture.FrameCount = Texture.BitmapFrames.Length;
+            Texture.IsAnimated = Texture.FrameCount > 1;
+            Texture.PixelFormat = Texture.FirstFrame.PixelFormat.ToString();
+            Texture.Width = Texture.FirstFrame.Width;
+            Texture.Height = Texture.FirstFrame.Height;
 
             tsProgress.Visible = false;
-            tslbStatus.Text = $"Extracted {Texture.BitmapFrames.Length} gif frames";
-
-            IsFileLoaded = true;
+            tslbStatus.Text = $"Extracted {Texture.FrameCount} gif frames";
 
             SetupControls();
-        }
-
-        private void AnimationTimer_TickCallback(object sender, EventArgs e)
-        {
-            if (!IsFileLoaded)
-                return;
-
-            if (CurrentFrameID >= Texture.BitmapFrames.Length - 1)
-                CurrentFrameID = 0;
-            else
-                CurrentFrameID++;
-
-            pbTexture.Image = Texture.BitmapFrames[CurrentFrameID];
-            lbCurrentFrame.Text = $"#" + CurrentFrameID.ToString();
-
         }
 
         private Bitmap[] ExtractFrames(Bitmap bmp)
@@ -333,40 +343,8 @@ namespace ChaosTools.Texture
             return BitmapFrames;
         }
 
-        private static Bitmap MakeTransparentBackground(int size = 10)
-        {
-            var bmp = new Bitmap(size * 2, size * 2);
-
-            using (SolidBrush sb = new SolidBrush(Color.LightGray))
-            using (Graphics g = Graphics.FromImage(bmp))
-            {
-                g.FillRectangle(sb, 0, 0, size, size);
-                g.FillRectangle(sb, size, size, size, size);
-            }
-
-            return bmp;
-        }
-
-        private Bitmap LoadTGA(string fp)
-        {
-            var img = Pfim.Pfim.FromFile(fp);
-
-            PixelFormat pf = img.Format switch
-            {
-                Pfim.ImageFormat.Rgb24 => PixelFormat.Format24bppRgb,
-                Pfim.ImageFormat.Rgba32 => PixelFormat.Format32bppArgb,
-                Pfim.ImageFormat.R5g5b5 => PixelFormat.Format16bppRgb555,
-                Pfim.ImageFormat.R5g6b5 => PixelFormat.Format16bppRgb565,
-                Pfim.ImageFormat.R5g5b5a1 => PixelFormat.Format16bppArgb1555,
-                Pfim.ImageFormat.Rgb8 => PixelFormat.Format8bppIndexed
-            };
-
-            return CreateBitmap(img.Width, img.Height, img.Data, pf);
-        }
-
         private dynamic CreateTexture()
         {
-            int frameCount = Texture.BitmapFrames.Length;
             var bt = new CBinaryTexture
             {
                 Width = (uint)Texture.Width,
@@ -374,17 +352,17 @@ namespace ChaosTools.Texture
                 Height = (uint)Texture.Height,
                 MipMapCount = 1,
                 Flags = (uint)GetFlagFromListbox(clbFlag),
-                FrameCount = (uint)frameCount,
+                FrameCount = (uint)Texture.BitmapFrames.Length,
                 BitmapFrames = Texture.BitmapFrames
             };
 
-            if (frameCount > 1)
+            if (Texture.IsAnimated)
             {
                 bt.Animation = new CTextureAnimation[1];
                 bt.Animation[0] = new CTextureAnimation
                 {
                     FrameDuration = Texture.FrameDuration / (1000.0f * 10),
-                    FrameCount = frameCount
+                    FrameCount = Texture.FrameCount
                 };
             }
 
@@ -404,8 +382,11 @@ namespace ChaosTools.Texture
 
         private void SetupControls()
         {
+            IsFileLoaded = true;
+
             pbTexture.Width = Texture.Width;
             pbTexture.Height = Texture.Height;
+            pbTexture.Anchor = AnchorStyles.None;
 
             pbTexture.Location = new Point((pTexture.Width / 2) - (Texture.Width / 2),
                             (pTexture.Height / 2) - (Texture.Height / 2));
@@ -419,10 +400,7 @@ namespace ChaosTools.Texture
                     FillFrameBox();
 
                 if (Texture.FrameDuration is 0)
-                {
                     Texture.FrameDuration = 100;
-                    Texture.FrameCount = Texture.BitmapFrames.Length;
-                }
 
                 AnimationTimer.Interval = Texture.FrameDuration;
                 AnimationTimer.Start();
@@ -436,26 +414,44 @@ namespace ChaosTools.Texture
                 btnPlayPauseAnimation.Visible = true;
 
                 trbFrameDuration.Value = 100;
-                lbFrameDurationValue.Text = Texture.FrameDuration.ToString() + " Milliseconds";
+                lbFrameDurationValue.Text = Texture.FrameDuration + " Milliseconds";
+            }
+            else
+                lbCurrentFrame.Text = "Not Animated " + (Texture.IsTexture ? "Texture" : "Image");
+
+            Text = $"ChaosTools.Texture - " + (Texture.IsAnimated ? $"{Texture.FrameCount} Frames" : CurrentFileName);
+
+            bool isIcon = false;
+            foreach (var x in IconOffsets)
+            {
+                if(CurrentFileName.Contains(x.Key, StringComparison.OrdinalIgnoreCase))
+                {
+                    isIcon = true;
+                    IconOffset = x.Value;
+                }
             }
 
-            // show first frame
-            pbTexture.Image = Texture.BitmapFrames[0];
+            tslbIconPosition.Visible = isIcon;
+            IconMode = isIcon;
 
-            tslbFormat.Text = $"{Texture.Format}";
-            tslbStatus.Text = $"{Texture.Width} x {Texture.Height} x {Texture.PixelFormat}";
+            btnUndo.Location = Texture.IsAnimated ? new Point(160, 217) : new Point(15, 217);
+            btnUndo.Size = new Size(Texture.IsAnimated ? 88 : 233, btnUndo.Size.Height);
+            pbFrameIcon.Visible = Texture.IsAnimated;
+
+            // show first frame
+            pbTexture.Image = Texture.FirstFrame;
+
+            tslbFormat.Text = Texture.Format;
+            tslbStatus.Text = $"{Texture.Width} x {Texture.Height} x {Texture.PixelFormat} ";
         }
 
         private void pbTexture_OnMouseWheel(object sender, MouseEventArgs e)
         {
-            if (e.Delta != 0)
-            {
-                if ((e.Delta < 0 && pbTexture.Width < 50) || (e.Delta > 0 && pbTexture.Width > 1000))
-                    return;
+            if (e.Delta is 0 || (e.Delta < 0 && pbTexture.Width < 50) || (e.Delta > 0 && pbTexture.Width > 2000) || IconMode)
+                return;
 
-                pbTexture.Width += Convert.ToInt32(pbTexture.Width * e.Delta / ZoomBuffer);
-                pbTexture.Height += Convert.ToInt32(pbTexture.Height * e.Delta / ZoomBuffer);
-            }
+            pbTexture.Width += Convert.ToInt32(pbTexture.Width * e.Delta / (4 * 1000));
+            pbTexture.Height += Convert.ToInt32(pbTexture.Height * e.Delta / (4 * 1000));
         }
 
         private Bitmap DrawIcon(Image img, Bitmap icon, int offset = 32)
@@ -575,7 +571,16 @@ namespace ChaosTools.Texture
             };
 
             if (sfd.ShowDialog() == DialogResult.OK)
-                ExportTexture(CreateTexture(), sfd.FileName);
+            {
+                // perform pixel and size check
+                var equalityCheck = Texture.BitmapFrames.ToList().Where(x => x.Width != Texture.FirstFrame.Width 
+                        || x.Height != Texture.FirstFrame.Height || x.PixelFormat != Texture.FirstFrame.PixelFormat).Count();
+
+                if (equalityCheck is 0)
+                    ExportTexture(CreateTexture(), sfd.FileName);
+                else
+                    tslbStatus.Text = $"ERROR: Texture cannot be exported as the frames are different";
+            }
         }
 
         private void tsSaveAs_Click(object sender, EventArgs e)
@@ -628,10 +633,10 @@ namespace ChaosTools.Texture
 
             if (IconMode && c.Name is "pbTexture")
             {
-                IconX = (int)Math.Floor(e.X / 32f);
-                IconY = (int)Math.Floor(e.Y / 32f);
+                IconX = (int)Math.Floor(e.X / (float)IconOffset);
+                IconY = (int)Math.Floor(e.Y / (float)IconOffset);
 
-                tslbStatus.Text = $"{IconX} x {IconY}";
+                tslbIconPosition.Text = $"{IconX} x {IconY}";
             }
         }
 
@@ -639,44 +644,39 @@ namespace ChaosTools.Texture
         private void pbTexture_MouseClick(object sender, MouseEventArgs e)
         {
             Control c = sender as Control;
-            if (ColorPickerMode && c.Name is "pbTexture" && e.Button == MouseButtons.Right)
+            if (c.Name is "pbTexture" && e.Button == MouseButtons.Right)
             {
                 var bmp = new Bitmap(pbTexture.Image);
 
                 int x = bmp.Width * e.X / pbTexture.Width;
                 int y = bmp.Height * e.Y / pbTexture.Height;
 
-                PickedColor = bmp.GetPixel(x, y);
-                pColorPreview.BackColor = PickedColor;
+                SelectedColor = bmp.GetPixel(x, y);
+
+                DrawSelectedColor();
             }
         }
 
         private void trbFrameDuration_Scroll(object sender, EventArgs e)
         {
             Texture.FrameDuration = trbFrameDuration.Value;
-            AnimationTimer.Interval = trbFrameDuration.Value;
+            AnimationTimer.Interval = Texture.FrameDuration;
 
-            lbFrameDurationValue.Text = trbFrameDuration.Value.ToString() + " Milliseconds";
+            lbFrameDurationValue.Text = Texture.FrameDuration + " Milliseconds";
         }
 
-        private void btnConvertToTransparent_Click(object sender, EventArgs e)
+        private void btnChangeToTransparent_MouseClick(object sender, MouseEventArgs e)
         {
-            if (!IsFileLoaded)
+            if (!IsFileLoaded || e.Button is not MouseButtons.Left)
                 return;
 
             if (!cbOnlyCurrentFrame.Checked)
-            {
-                for (int i = 0; i < Texture.BitmapFrames.Length; i++)
-                    Texture.BitmapFrames[i].MakeTransparent(PickedColor);
-            }
+                for (int i = 0; i < Texture.FrameCount; i++)
+                    Texture.GetFrame(i).MakeTransparent(SelectedColor);
             else
-                Texture.BitmapFrames[CurrentFrameID].MakeTransparent(PickedColor);
+                CurrentFrame.MakeTransparent(SelectedColor);
 
-            if (!Texture.IsAnimated || cbOnlyCurrentFrame.Checked)
-            {
-                pbTexture.Image = Texture.BitmapFrames[cbOnlyCurrentFrame.Checked ? CurrentFrameID : 0];
-                pbTexture.Refresh();
-            }
+            pbTexture.Refresh();
         }
 
         private void trbHue_Scroll(object sender, EventArgs e)
@@ -684,17 +684,15 @@ namespace ChaosTools.Texture
             if (!IsFileLoaded)
                 return;
 
-            if (!cbOnlyCurrentFrame.Checked)
-            {
-                for (int i = 0; i < Texture.BitmapFrames.Length; i++)
-                    Texture.BitmapFrames[i] = RotateHue(Texture.BitmapFrames[i], trbHue.Value);
-            }
+            if (cbOnlyCurrentFrame.Checked)
+                Texture.SetFrame(CurrentFrameID, RotateHue(CurrentFrame, trbHue.Value));
             else
-                Texture.BitmapFrames[CurrentFrameID] = RotateHue(Texture.BitmapFrames[CurrentFrameID], trbHue.Value);
+                for (int i = 0; i < Texture.FrameCount; i++)
+                    Texture.SetFrame(i, RotateHue(Texture.GetFrame(i), trbHue.Value));
 
             if (cbOnlyCurrentFrame.Checked || !AnimationTimer.Enabled)
             {
-                pbTexture.Image = Texture.BitmapFrames[Texture.IsAnimated ? CurrentFrameID : 0];
+                pbTexture.Image = Texture.GetFrame(Texture.IsAnimated ? CurrentFrameID : 0);
                 pbTexture.Refresh();
             }
         }
@@ -705,31 +703,35 @@ namespace ChaosTools.Texture
                 return;
 
             if (Texture.IsAnimated && cbOnlyCurrentFrame.Checked)
-                Texture.BitmapFrames[CurrentFrameID] = (Bitmap)OriginalBitmapFrames[CurrentFrameID].Clone();
+                Texture.SetFrame(CurrentFrameID, (Bitmap)OriginalBitmapFrames[CurrentFrameID].Clone());
             else
-                for (int i = 0; i < OriginalBitmapFrames.Length; i++)
-                    Texture.BitmapFrames[i] = (Bitmap)OriginalBitmapFrames[i].Clone();
+                for (int i = 0; i < Texture.FrameCount; i++)
+                    Texture.SetFrame(i, (Bitmap)OriginalBitmapFrames[i].Clone());
 
             trbHue.Value = 0;
 
-            pbTexture.Image = Texture.BitmapFrames[CurrentFrameID];
+            pbTexture.Image = CurrentFrame;
             pbTexture.Refresh();
         }
 
-        private void btnPlayPauseAnimation_Click(object sender, EventArgs e)
+        private void btnPlayPauseAnimation_MouseClick(object sender, MouseEventArgs e)
         {
-            if (!IsFileLoaded)
+            if(e.Button is MouseButtons.Left)
+                ChangeAnimationState();
+        }
+
+        private void ChangeAnimationState()
+        {
+            if (!IsFileLoaded || !Texture.IsAnimated)
                 return;
 
             bool isTimerRunning = AnimationTimer.Enabled;
 
-            if (isTimerRunning)
-                AnimationTimer.Stop();
-            else
-                AnimationTimer.Start();
+            if (isTimerRunning) AnimationTimer.Stop();
+            else AnimationTimer.Start();
 
             btnPlayPauseAnimation.Text = isTimerRunning ? "Play" : "Pause";
-           // pbTexture.Image = Texture.BitmapFrames[CurrentFrameID];
+            btnPlayPauseAnimation.Image = isTimerRunning ? Resources.Run_grey_16x : Resources.Pause_grey_16x;
         }
 
         public static void SetDoubleBuffered(Control c)
@@ -785,6 +787,25 @@ namespace ChaosTools.Texture
             return bmp;
         }
 
+        public static Bitmap ChangeColor(Bitmap bmp, Color o, Color n)
+        {
+            var attributes = new ImageAttributes();
+            attributes.SetRemapTable(new ColorMap[]
+            {
+                new ColorMap()
+                {
+                    OldColor = o,
+                    NewColor = n,
+                }
+
+            }, ColorAdjustType.Bitmap);
+
+            using (Graphics g = Graphics.FromImage(bmp))
+                g.DrawImage(bmp, new Rectangle(Point.Empty, bmp.Size), 0, 0, bmp.Width, bmp.Height, GraphicsUnit.Pixel, attributes);
+
+            return bmp;
+        }
+
         private Bitmap DrawUV(int w, int h, string fp)
         {
             var model = LoadMesh(fp);
@@ -799,7 +820,7 @@ namespace ChaosTools.Texture
                 float u = model.UVMaps[0].UV[i].U * pbTexture.Width;
                 float v = model.UVMaps[0].UV[i].V * pbTexture.Height;
 
-                g.FillEllipse(new SolidBrush(PickedColor), new RectangleF(u, v, 3, 3));
+                g.FillEllipse(new SolidBrush(SelectedColor), new RectangleF(u, v, 3, 3));
             }
 
             return bmp;
@@ -831,12 +852,42 @@ namespace ChaosTools.Texture
             return (Bitmap)bmp;
         }
 
+        private void DrawSelectedColor(int size = 14)
+        {
+            var ctl = btnChangeToTransparent;
+            var bmp = new Bitmap(ctl.Width, ctl.Height);
+
+            using (var g = Graphics.FromImage(bmp))
+            {
+                g.SmoothingMode = SmoothingMode.AntiAlias;
+                g.CompositingQuality = CompositingQuality.GammaCorrected;
+
+                g.FillEllipse(new SolidBrush(SelectedColor), new Rectangle(5, 4, size, size));
+            }
+
+            ctl.Image = bmp;
+        }
+
         public static Bitmap CreateBitmap(int w, int h, byte[] pd, PixelFormat pf)
         {
             Bitmap bmp = new Bitmap(w, h, pf);
             BitmapData data = bmp.LockBits(new Rectangle(0, 0, bmp.Width, bmp.Height), ImageLockMode.WriteOnly, bmp.PixelFormat);
             Marshal.Copy(pd, byte.MinValue, data.Scan0, pd.Length);
             bmp.UnlockBits(data);
+
+            return bmp;
+        }
+
+        private static Bitmap CreateTransparentBackground(int size = 10)
+        {
+            var bmp = new Bitmap(size * 2, size * 2);
+
+            using (SolidBrush sb = new SolidBrush(Color.LightGray))
+            using (Graphics g = Graphics.FromImage(bmp))
+            {
+                g.FillRectangle(sb, 0, 0, size, size);
+                g.FillRectangle(sb, size, size, size, size);
+            }
 
             return bmp;
         }
@@ -858,10 +909,40 @@ namespace ChaosTools.Texture
             return flag;
         }
 
-        // export/import wrappers
-        private static void ExportFrames(Bitmap[] bmps, string fp, string ext)
+        // frame wrappers
+        private Bitmap CurrentFrame
+            => Texture.GetFrame(CurrentFrameID);
+
+        private void SetFrame(bool increase)
         {
-            for (int i = 0; i < bmps.Length; i++)
+            if (!IsFileLoaded || !Texture.IsAnimated)
+                return;
+
+            CurrentFrameID = increase ? (CurrentFrameID < Texture.FrameCount - 1) ? CurrentFrameID + 1 : 0 
+                : (CurrentFrameID > 0) ? CurrentFrameID - 1 : Texture.FrameCount - 1;
+
+            lbCurrentFrame.Text = $"Frame {CurrentFrameID}";
+            pbTexture.Image = CurrentFrame;
+            pbTexture.Refresh();
+        }
+
+        private void SetFrameDuration(bool increase)
+        {
+            if (!IsFileLoaded || !Texture.IsAnimated)
+                return;
+
+            Texture.FrameDuration = increase ? (Texture.FrameDuration != trbFrameDuration.Maximum) ? Texture.FrameDuration + 10 : 10 
+                : (Texture.FrameDuration >= 11) ? Texture.FrameDuration - 10 : trbFrameDuration.Maximum;
+
+            AnimationTimer.Interval = Texture.FrameDuration;
+            trbFrameDuration.Value = Texture.FrameDuration;
+            lbFrameDurationValue.Text = Texture.FrameDuration + " Milliseconds";
+        }
+
+        // export/import wrappers
+        private static void ExportFrames(Bitmap[] lbmp, string fp, string ext)
+        {
+            for (int i = 0; i < lbmp.Length; i++)
             {
                 var imgf = ext switch
                 {
@@ -869,12 +950,27 @@ namespace ChaosTools.Texture
                     ".jpeg" => ImageFormat.Jpeg,
                     ".bmp" => ImageFormat.Bmp,
                     ".png" => ImageFormat.Png
-
-                    // add gif
                 };
 
-                bmps[i].Save(fp.Substring(0, fp.Length - ext.Length) + (bmps.Length > 1 ? i.ToString() : string.Empty) + ext, imgf);
+                lbmp[i].Save(fp.Substring(0, fp.Length - ext.Length) + (lbmp.Length > 1 ? i : string.Empty) + ext, imgf);
             }
+        }
+
+        private Bitmap LoadTARGA(string fp)
+        {
+            var img = Pfim.Pfim.FromFile(fp);
+
+            PixelFormat pf = img.Format switch
+            {
+                Pfim.ImageFormat.Rgb24 => PixelFormat.Format24bppRgb,
+                Pfim.ImageFormat.Rgba32 => PixelFormat.Format32bppArgb,
+                Pfim.ImageFormat.R5g5b5 => PixelFormat.Format16bppRgb555,
+                Pfim.ImageFormat.R5g6b5 => PixelFormat.Format16bppRgb565,
+                Pfim.ImageFormat.R5g5b5a1 => PixelFormat.Format16bppArgb1555,
+                Pfim.ImageFormat.Rgb8 => PixelFormat.Format8bppIndexed
+            };
+
+            return CreateBitmap(img.Width, img.Height, img.Data, pf);
         }
 
         private static void ExportTexture(CBinaryTexture bt, string fp)
@@ -882,8 +978,8 @@ namespace ChaosTools.Texture
 
         private dynamic LoadTexture(string fp)
             => new ChaosAsset().Import(AssetType.Texture, fp, AssetDataType.Binary);
+
         private dynamic LoadMesh(string fp)
-            // if error = mesh file is empty or invalid
             => new ChaosAsset().Import(AssetType.Mesh, fp, AssetDataType.Binary).Mesh[0];
     }
 }

@@ -12,6 +12,15 @@ namespace ChaosTools.Texture
         public bool IsAnimated;
 
         public int FrameDuration;
-        public int FrameCount;
+        public int FrameCount => BitmapFrames.Length;
+
+        public Bitmap FirstFrame
+            => BitmapFrames[0];
+
+        public Bitmap GetFrame(int id)
+            => BitmapFrames[id];
+
+        public void SetFrame(int id, Bitmap bmp)
+            => BitmapFrames[id] = bmp;
     }
 }
