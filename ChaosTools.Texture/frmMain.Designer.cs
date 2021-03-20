@@ -49,6 +49,7 @@ namespace ChaosTools.Texture
             this.tsShowFlagBox = new System.Windows.Forms.ToolStripMenuItem();
             this.tsAdditional = new System.Windows.Forms.ToolStripMenuItem();
             this.tsImportUV = new System.Windows.Forms.ToolStripMenuItem();
+            this.tsExportUV = new System.Windows.Forms.ToolStripMenuItem();
             this.tsAbout = new System.Windows.Forms.ToolStripMenuItem();
             this.pbTexture = new System.Windows.Forms.PictureBox();
             this.pTexture = new System.Windows.Forms.Panel();
@@ -231,7 +232,8 @@ namespace ChaosTools.Texture
             // tsAdditional
             // 
             this.tsAdditional.DropDownItems.AddRange(new System.Windows.Forms.ToolStripItem[] {
-            this.tsImportUV});
+            this.tsImportUV,
+            this.tsExportUV});
             this.tsAdditional.Name = "tsAdditional";
             this.tsAdditional.Size = new System.Drawing.Size(74, 20);
             this.tsAdditional.Text = "&Additional";
@@ -242,6 +244,13 @@ namespace ChaosTools.Texture
             this.tsImportUV.Size = new System.Drawing.Size(128, 22);
             this.tsImportUV.Text = "Import UV";
             this.tsImportUV.Click += new System.EventHandler(this.tsImportUV_Click);
+            // 
+            // tsExportUV
+            // 
+            this.tsExportUV.Name = "tsExportUV";
+            this.tsExportUV.Size = new System.Drawing.Size(128, 22);
+            this.tsExportUV.Text = "Export UV";
+            this.tsExportUV.Click += new System.EventHandler(this.tsExportUV_Click);
             // 
             // tsAbout
             // 
@@ -540,7 +549,6 @@ namespace ChaosTools.Texture
         private System.Windows.Forms.ToolStripMenuItem exitToolStripMenuItem;
         private System.Windows.Forms.ToolStripMenuItem tsEdit;
         private System.Windows.Forms.ToolStripMenuItem tsAdditional;
-        private System.Windows.Forms.PictureBox pbTexture;
         private System.Windows.Forms.Panel pTexture;
         private System.Windows.Forms.ToolStripMenuItem tsSaveAs;
         private System.Windows.Forms.ToolStripMenuItem tsDrawUV;
@@ -571,6 +579,8 @@ namespace ChaosTools.Texture
         private System.Windows.Forms.Panel panel2;
         private System.Windows.Forms.PictureBox pbFrameIcon;
         private System.Windows.Forms.ToolStripStatusLabel tslbIconPosition;
+        private System.Windows.Forms.ToolStripMenuItem tsExportUV;
+        public System.Windows.Forms.PictureBox pbTexture;
     }
 }
 

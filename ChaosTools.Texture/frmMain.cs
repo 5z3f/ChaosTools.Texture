@@ -9,18 +9,20 @@ using System.Reflection;
 using System.Windows.Forms;
 using System.Runtime.InteropServices;
 using System.ComponentModel;
+using ChaosTools.Texture.Properties;
 
 using ChaosLib.D3D;
 using CBinaryTexture = ChaosLib.D3D.Structures.CBinaryTexture;
 using CTextureAnimation = ChaosLib.D3D.Structures.CTextureAnimation;
 using TextureFlag = ChaosLib.D3D.Structures.TextureFlag;
-using ChaosTools.Texture.Properties;
 
 namespace ChaosTools.Texture
 {
     public partial class frmMain : Form
     {
-        public CTexture Texture = new CTexture();
+        public static CTexture Texture = new CTexture();
+        public static dynamic Mesh = null;
+
         public Bitmap[] OriginalBitmapFrames = null;
 
         private int CursorX = 0, CursorY = 0;
@@ -145,7 +147,6 @@ namespace ChaosTools.Texture
             ReadFiles(f);
         }
 
-
         private dynamic ExtractFrameInfo(string fp, List<Bitmap> lbmp)
         {
             var rf = ReadFile(fp);
@@ -172,10 +173,8 @@ namespace ChaosTools.Texture
                 if (isTexture)
                     CheckFlagInListbox(clbFlag, (int)data.Flags);
 
-                if (isAnimated)
-                    lbmp.AddRange(data.BitmapFrames);
-                else
-                    lbmp.Add(isTexture ? data.BitmapFrames[0] : data);
+                if (isAnimated) lbmp.AddRange(data.BitmapFrames);
+                else            lbmp.Add(isTexture ? data.BitmapFrames[0] : data);
 
                 var firstFrame = lbmp.First();
 
@@ -220,6 +219,7 @@ namespace ChaosTools.Texture
         {
             // reset data
             Texture = new CTexture();
+            Mesh = null;
 
             // reset frame id
             CurrentFrameID = 0;
@@ -237,6 +237,7 @@ namespace ChaosTools.Texture
             tslbIconPosition.Text = "0 x 0";
 
             trbHue.Value = 0;
+            tsExportUV.Enabled = false;
 
             // stop animation if enabeld
             if (AnimationTimer.Enabled)
@@ -474,20 +475,6 @@ namespace ChaosTools.Texture
             return bmp;
         }
 
-        public Bitmap AppendBitmap(Bitmap source, Bitmap target, int spacing)
-        {
-            Bitmap bmp = new Bitmap(source.Width, source.Height);
-
-            using (Graphics g = Graphics.FromImage(bmp))
-            {
-                g.DrawImage(source, new Rectangle(0, 0, source.Width, source.Height));
-                g.DrawImage(target, new Rectangle(0, 0, source.Width, source.Height));
-            }
-
-            return bmp;
-        }
-
-
         // --- menu bar
         private void tsAbout_Click(object sender, EventArgs e)
             => new frmAbout().Show();
@@ -530,15 +517,23 @@ namespace ChaosTools.Texture
             OpenFileDialog ofd = new OpenFileDialog
             {
                 Title = "Load Mesh File",
-                Filter = "Last Chaos Mesh|*.bm|Serious Sam 1.10 Mesh|*.bm",
+                Filter = "Last Chaos Mesh|*.bm",
                 RestoreDirectory = true
             };
 
             if (ofd.ShowDialog() == DialogResult.OK)
             {
-                var bmp = DrawUV(pbTexture.Width, pbTexture.Height, ofd.FileName);
-                pbTexture.Image = AppendBitmap((Bitmap)pbTexture.Image, bmp, 0);
+                Mesh = LoadMesh(ofd.FileName);
+                tsExportUV.Enabled = true;
             }
+        }
+
+        private void tsExportUV_Click(object sender, EventArgs e)
+        {
+            if (!IsFileLoaded || Texture.IsAnimated || Mesh is null)
+                return;
+
+            new frmExportUV().Show();
         }
 
         private void tsOpen_Click(object sender, EventArgs e)
@@ -802,26 +797,6 @@ namespace ChaosTools.Texture
 
             using (Graphics g = Graphics.FromImage(bmp))
                 g.DrawImage(bmp, new Rectangle(Point.Empty, bmp.Size), 0, 0, bmp.Width, bmp.Height, GraphicsUnit.Pixel, attributes);
-
-            return bmp;
-        }
-
-        private Bitmap DrawUV(int w, int h, string fp)
-        {
-            var model = LoadMesh(fp);
-
-            var bmp = new Bitmap(w, h);
-            var g = Graphics.FromImage(bmp);
-            g.SmoothingMode = SmoothingMode.AntiAlias;
-            g.CompositingQuality = CompositingQuality.GammaCorrected;
-
-            for (int i = 0; i < model.UVMaps[0].UV.Length; i++)
-            {
-                float u = model.UVMaps[0].UV[i].U * pbTexture.Width;
-                float v = model.UVMaps[0].UV[i].V * pbTexture.Height;
-
-                g.FillEllipse(new SolidBrush(SelectedColor), new RectangleF(u, v, 3, 3));
-            }
 
             return bmp;
         }
