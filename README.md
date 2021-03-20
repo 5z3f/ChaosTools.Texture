@@ -34,6 +34,8 @@ Last Chaos Texture Tool
 
 ## Showcase
 ![61O5dj7xBt](https://user-images.githubusercontent.com/39301116/111074087-c4407a00-84e1-11eb-865a-7d2b47aca8fc.gif)
+![iKxC2vtOuZ](https://user-images.githubusercontent.com/39301116/111888670-ed2fa600-89de-11eb-8a87-8c9721d8f031.png)
+
 
 ### In Game
 ![example-animated-texture](https://user-images.githubusercontent.com/39301116/110999776-2fbf0600-8381-11eb-8134-0d0babced07a.gif)
