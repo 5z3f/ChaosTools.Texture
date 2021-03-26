@@ -11,7 +11,7 @@ Last Chaos Texture Tool
 - texture flag editor
 - icon mode wich shows icon col/row ids on btn files
 - color2transparent function (pick color by right clicking on image)
-- import uv map from mesh file (last chaos & serious engine 1.10 supported)
+- import uv map from mesh file
 - drag and drop (multifile drop is not supported for tex and gif files)
 - create animated texture from gif file
 - export separated frames
